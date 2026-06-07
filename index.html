@@ -8,13 +8,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{ --zone:#dc3545; }
-  body{ background:#f7f8fa; color:#212529; }
+  body{ background:#f7f8fa; color:#212529; padding-bottom:84px; }
   .app{ max-width:640px; } .wide{ max-width:960px; }
   .screen{ display:none; } .screen.show{ display:block; }
   .score-big{ font-size:3.4rem; font-weight:700; line-height:1; color:var(--zone); }
   .step-label{ letter-spacing:.12em; text-transform:uppercase; font-size:.72rem; color:#6c757d; font-weight:600; }
-  .pair-row{ display:flex; align-items:center; justify-content:space-between; gap:1rem;
-    padding:.6rem .25rem; border-bottom:1px solid #eee; }
+  .pair-row{ display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+    flex-wrap:wrap; padding:.6rem .25rem; border-bottom:1px solid #eee; }
   .pair-row:last-child{ border-bottom:none; }
   .pair-name{ font-weight:500; }
   svg{ width:100%; height:auto; display:block; }
@@ -30,15 +30,17 @@
   .legend-dot{ display:inline-block; width:14px; height:14px; border-radius:50%; vertical-align:middle; }
   .grad-bar{ flex:1; height:12px; border-radius:6px;
     background:linear-gradient(to right, rgb(207,224,245), rgb(21,58,110)); }
+  .fab{ position:fixed; right:16px; bottom:16px; z-index:1050; border-radius:28px;
+    padding:.55rem 1.1rem; box-shadow:0 4px 14px rgba(0,0,0,.18); }
+  @media (max-width:480px){
+    .container{ padding-left:.75rem; padding-right:.75rem; }
+    .fab{ right:12px; bottom:12px; padding:.5rem .9rem; font-size:.9rem; }
+    .score-big{ font-size:3rem; }
+  }
 </style>
 </head>
 <body>
 <div class="container py-4">
-
-  <ul class="nav nav-pills justify-content-center mb-4 small">
-    <li class="nav-item"><a class="nav-link active" id="tab-app" onclick="showTab('app')">Participant</a></li>
-    <li class="nav-item"><a class="nav-link" id="tab-debrief" onclick="showTab('debrief')">Facilitator debrief</a></li>
-  </ul>
 
   <!-- =================== PARTICIPANT APP =================== -->
   <div id="view-app" class="app mx-auto">
@@ -145,6 +147,8 @@
   <!-- =================== FACILITATOR DEBRIEF =================== -->
   <div id="view-debrief" class="wide mx-auto" style="display:none;">
 
+    <button class="btn btn-link px-0 mb-2" onclick="showTab('app')">&larr; Back to the app</button>
+
     <!-- password gate -->
     <div id="debriefGate" class="app mx-auto">
       <div class="card shadow-sm border-0"><div class="card-body p-4">
@@ -191,6 +195,9 @@
 
 </div>
 
+<!-- floating button to reach the facilitator debrief -->
+<button id="fab-debrief" class="btn btn-dark fab" onclick="showTab('debrief')">Facilitator debrief</button>
+
 <script>
 // ===== paste your Google Apps Script web app URL between the quotes =====
 const ENDPOINT = 'https://script.google.com/macros/s/AKfycbxyr1rB5uUo0WZ1Y__G41gZ0oih9wxGc23ns7IdVw74VB3JosThf9zKSDAfp_2h7MwmYg/exec';
@@ -212,8 +219,8 @@ function go(n){
 function showTab(t){
   document.getElementById('view-app').style.display    = t==='app' ? 'block':'none';
   document.getElementById('view-debrief').style.display= t==='debrief' ? 'block':'none';
-  document.getElementById('tab-app').classList.toggle('active', t==='app');
-  document.getElementById('tab-debrief').classList.toggle('active', t==='debrief');
+  document.getElementById('fab-debrief').style.display = t==='app' ? 'inline-flex':'none';
+  window.scrollTo({top:0,behavior:'smooth'});
   if(t==='debrief'){
     document.getElementById('debriefGate').style.display    = debriefUnlocked ? 'none' : 'block';
     document.getElementById('debriefContent').style.display = debriefUnlocked ? 'block' : 'none';
