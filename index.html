@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Echo Chamber Mapper</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{ --zone:#dc3545; }
+  body{ background:#f7f8fa; color:#212529; }
+  .app{ max-width:640px; } .wide{ max-width:960px; }
+  .screen{ display:none; } .screen.show{ display:block; }
+  .score-big{ font-size:3.4rem; font-weight:700; line-height:1; color:var(--zone); }
+  .step-label{ letter-spacing:.12em; text-transform:uppercase; font-size:.72rem; color:#6c757d; font-weight:600; }
+  .pair-row{ display:flex; align-items:center; justify-content:space-between; gap:1rem;
+    padding:.6rem .25rem; border-bottom:1px solid #eee; }
+  .pair-row:last-child{ border-bottom:none; }
+  .pair-name{ font-weight:500; }
+  svg{ width:100%; height:auto; display:block; }
+  .zone-fill{ fill:var(--zone); opacity:.10; }
+  .axis{ stroke:#adb5bd; stroke-width:1.2; }
+  .grid{ stroke:#e3e6ea; stroke-width:1; stroke-dasharray:3 3; }
+  .axlab{ font-size:11px; fill:#6c757d; }
+  .meter-label{ display:flex; justify-content:space-between; font-size:.9rem; margin-bottom:.25rem; }
+  .footnote{ font-size:.82rem; color:#6c757d; }
+  .nav-pills .nav-link{ cursor:pointer; }
+  .legend-line{ display:inline-block; width:28px; border-top:2px dashed #495057; vertical-align:middle; }
+  .legend-dot{ display:inline-block; width:14px; height:14px; border-radius:50%; vertical-align:middle; }
+  .grad-bar{ flex:1; height:12px; border-radius:6px;
+    background:linear-gradient(to right, rgb(207,224,245), rgb(21,58,110)); }
+</style>
+</head>
+<body>
+<div class="container py-4">
+
+  <ul class="nav nav-pills justify-content-center mb-4 small">
+    <li class="nav-item"><a class="nav-link active" id="tab-app" onclick="showTab('app')">Participant</a></li>
+    <li class="nav-item"><a class="nav-link" id="tab-debrief" onclick="showTab('debrief')">Facilitator debrief</a></li>
+  </ul>
+
+  <!-- =================== PARTICIPANT APP =================== -->
+  <div id="view-app" class="app mx-auto">
+
+    <div class="screen show" id="s0">
+      <div class="card shadow-sm border-0"><div class="card-body p-4">
+        <div class="step-label mb-2">Before we start</div>
+        <h4 class="mb-3">A quick, confidential map of who you talk to</h4>
+        <p class="text-secondary">Three short questions, about three minutes. Your answers are private. No one sees the names you enter. We use them only to show you your own result and to build one anonymous group picture for the debrief.</p>
+        <p class="text-secondary mb-4">You can download your own result at the end, with names removed.</p>
+        <button class="btn btn-primary w-100" onclick="go(1)">Start</button>
+      </div></div>
+    </div>
+
+    <div class="screen" id="s1">
+      <div class="card shadow-sm border-0"><div class="card-body p-4">
+        <div class="progress mb-3" style="height:4px;"><div class="progress-bar" style="width:33%"></div></div>
+        <div class="step-label mb-2">Question 1 of 3</div>
+        <h5 class="mb-1">Name the people you regularly talk to and trust at work.</h5>
+        <p class="text-secondary small mb-3">Up to five names. First names or initials are fine.</p>
+        <div id="nameInputs"></div>
+        <div class="alert alert-warning py-2 small d-none" id="err1"></div>
+        <button class="btn btn-primary w-100 mt-2" onclick="submitNames()">Next</button>
+      </div></div>
+    </div>
+
+    <div class="screen" id="s2">
+      <div class="card shadow-sm border-0"><div class="card-body p-4">
+        <div class="progress mb-3" style="height:4px;"><div class="progress-bar" style="width:66%"></div></div>
+        <div class="step-label mb-2">Question 2 of 3</div>
+        <h5 class="mb-1">Do these people talk to each other?</h5>
+        <p class="text-secondary small mb-3">For each pair, choose yes or no.</p>
+        <div id="pairRows"></div>
+        <div class="alert alert-warning py-2 small d-none" id="err2"></div>
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-outline-secondary" onclick="go(1)">Back</button>
+          <button class="btn btn-primary flex-grow-1" onclick="submitPairs()">Next</button>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="screen" id="s3">
+      <div class="card shadow-sm border-0"><div class="card-body p-4">
+        <div class="progress mb-3" style="height:4px;"><div class="progress-bar" style="width:100%"></div></div>
+        <div class="step-label mb-2">Question 3 of 3</div>
+        <h5 class="mb-1">How similar are their political views to yours?</h5>
+        <p class="text-secondary small mb-3">1 = very different &nbsp;&middot;&nbsp; 5 = very similar</p>
+        <div id="simRows"></div>
+        <div class="alert alert-warning py-2 small d-none" id="err3"></div>
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-outline-secondary" onclick="go(2)">Back</button>
+          <button class="btn btn-primary flex-grow-1" onclick="submitSim()">See my result</button>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="screen" id="s4">
+      <div class="card shadow-sm border-0"><div class="card-body p-4">
+        <div class="step-label mb-2">Your private result</div>
+        <h5 class="mb-3">Your Echo Chamber Score</h5>
+        <div class="text-center mb-3">
+          <div class="score-big" id="eciVal">0.00</div>
+          <div class="text-secondary small">0 = very mixed &nbsp;&middot;&nbsp; 1 = very enclosed</div>
+        </div>
+        <div class="mb-3">
+          <div class="meter-label"><span>How connected your circle is</span><span id="dVal">0.00</span></div>
+          <div class="progress" style="height:8px;"><div class="progress-bar bg-info" id="dBar" style="width:0%"></div></div>
+          <div class="footnote">How much your people talk to one another.</div>
+        </div>
+        <div class="mb-3">
+          <div class="meter-label"><span>How like-minded your circle is</span><span id="sVal">0.00</span></div>
+          <div class="progress" style="height:8px;"><div class="progress-bar bg-danger" id="sBar" style="width:0%"></div></div>
+          <div class="footnote">How similar their political views are to yours.</div>
+        </div>
+        <svg id="egoSvg" viewBox="0 0 460 250" class="my-3"></svg>
+
+        <!-- chart legend -->
+        <div class="footnote border rounded p-3 mb-3" style="background:#fff;">
+          <div class="fw-semibold mb-2" style="color:#495057;">How to read this picture</div>
+          <div class="mb-2">
+            <span class="legend-dot" style="background:#212529;"></span>
+            &nbsp;<strong>You</strong>, in the centre.
+          </div>
+          <div class="mb-2">
+            <span class="legend-line"></span>
+            &nbsp;A dashed line means <strong>those two people talk to each other</strong>. No line between two people means they don't.
+          </div>
+          <div class="mb-1">Each circle is one of your contacts. Its <strong>colour shows how close their political views are to yours</strong>:</div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="small">Very different</span>
+            <span class="grad-bar"></span>
+            <span class="small">Very similar</span>
+          </div>
+        </div>
+
+        <p class="text-secondary" id="interp"></p>
+        <button class="btn btn-primary w-100" onclick="downloadPDF()">Download my result (PDF, names removed)</button>
+        <button class="btn btn-link w-100 mt-1" onclick="location.reload()">Start over</button>
+      </div></div>
+    </div>
+
+  </div>
+
+  <!-- =================== FACILITATOR DEBRIEF =================== -->
+  <div id="view-debrief" class="wide mx-auto" style="display:none;">
+
+    <!-- password gate -->
+    <div id="debriefGate" class="app mx-auto">
+      <div class="card shadow-sm border-0"><div class="card-body p-4">
+        <div class="step-label mb-2">Facilitator only</div>
+        <h5 class="mb-3">Enter the password to view the group debrief</h5>
+        <input type="password" class="form-control mb-2" id="debriefPw" placeholder="Password"
+               autocomplete="off" onkeydown="if(event.key==='Enter')unlockDebrief()">
+        <div class="alert alert-warning py-2 small d-none" id="gateErr">Incorrect password. Please try again.</div>
+        <button class="btn btn-primary w-100" onclick="unlockDebrief()">Unlock</button>
+      </div></div>
+    </div>
+
+    <!-- debrief content (hidden until unlocked) -->
+    <div id="debriefContent" style="display:none;">
+      <div class="card shadow-sm border-0"><div class="card-body p-4">
+        <span class="badge text-bg-secondary mb-2">Aggregate &middot; anonymous</span>
+        <h5 class="mb-1">Group debrief</h5>
+        <p class="text-secondary small mb-3" id="liveNote">Loading...</p>
+
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="todayOnly" onchange="renderDebrief()">
+            <label class="form-check-label small" for="todayOnly">Show only today's responses</label>
+          </div>
+          <button class="btn btn-outline-secondary btn-sm" onclick="drawDebrief()">Refresh</button>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h6>Where everyone sits</h6>
+            <p class="footnote mb-2">Right = more like-minded. Up = more connected. The shaded corner is where both are high.</p>
+            <div id="scatterHost"></div>
+          </div>
+          <div class="col-md-6">
+            <h6>The spread of scores</h6>
+            <p class="footnote mb-2">How many people fall at each Echo Chamber Score. The line marks the group average.</p>
+            <div id="histHost"></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ===== paste your Google Apps Script web app URL between the quotes =====
+const ENDPOINT = 'https://script.google.com/macros/s/AKfycbxyr1rB5uUo0WZ1Y__G41gZ0oih9wxGc23ns7IdVw74VB3JosThf9zKSDAfp_2h7MwmYg/exec';
+// =======================================================================
+
+// ===== facilitator debrief password =====
+const DEBRIEF_PW = 'Firat2674!';
+let debriefUnlocked = false;
+// ========================================
+
+const MAXN = 5;
+const state = { names:[], pairs:{}, sim:{} };
+
+function go(n){
+  document.querySelectorAll('#view-app .screen').forEach(s=>s.classList.remove('show'));
+  document.getElementById('s'+n).classList.add('show');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function showTab(t){
+  document.getElementById('view-app').style.display    = t==='app' ? 'block':'none';
+  document.getElementById('view-debrief').style.display= t==='debrief' ? 'block':'none';
+  document.getElementById('tab-app').classList.toggle('active', t==='app');
+  document.getElementById('tab-debrief').classList.toggle('active', t==='debrief');
+  if(t==='debrief'){
+    document.getElementById('debriefGate').style.display    = debriefUnlocked ? 'none' : 'block';
+    document.getElementById('debriefContent').style.display = debriefUnlocked ? 'block' : 'none';
+    if(debriefUnlocked) drawDebrief();
+    else { const pw=document.getElementById('debriefPw'); pw.value=''; pw.focus(); }
+  }
+}
+function unlockDebrief(){
+  const pw=document.getElementById('debriefPw').value;
+  const err=document.getElementById('gateErr');
+  if(pw===DEBRIEF_PW){
+    debriefUnlocked=true; err.classList.add('d-none');
+    document.getElementById('debriefGate').style.display='none';
+    document.getElementById('debriefContent').style.display='block';
+    drawDebrief();
+  } else {
+    err.classList.remove('d-none');
+  }
+}
+
+// ---------- Q1 ----------
+const nameHost=document.getElementById('nameInputs');
+for(let i=0;i<MAXN;i++){
+  nameHost.insertAdjacentHTML('beforeend',
+    `<input class="form-control mb-2" id="nm${i}" placeholder="Person ${i+1}" autocomplete="off">`);
+}
+function submitNames(){
+  const vals=[]; for(let i=0;i<MAXN;i++){const v=document.getElementById('nm'+i).value.trim(); if(v) vals.push(v);}
+  const err=document.getElementById('err1');
+  if(vals.length<2) return showErr(err,'Please enter at least two names before continuing.');
+  const lower=vals.map(v=>v.toLowerCase());
+  if(new Set(lower).size!==vals.length) return showErr(err,'Please make sure the names are different from each other.');
+  err.classList.add('d-none');
+  state.names=vals; buildPairs(); buildSim(); go(2);
+}
+function showErr(el,msg){ el.textContent=msg; el.classList.remove('d-none'); }
+
+// ---------- Q2 ----------
+function pairKey(i,j){ return i+'-'+j; }
+function buildPairs(){
+  const host=document.getElementById('pairRows'); host.innerHTML=''; state.pairs={};
+  const n=state.names.length;
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+    const k=pairKey(i,j);
+    host.insertAdjacentHTML('beforeend',
+      `<div class="pair-row">
+        <span class="pair-name">${esc(state.names[i])} &amp; ${esc(state.names[j])}</span>
+        <div class="btn-group btn-group-sm">
+          <input type="radio" class="btn-check" name="p${k}" id="p${k}y" onchange="state.pairs['${k}']=1">
+          <label class="btn btn-outline-success" for="p${k}y">Yes</label>
+          <input type="radio" class="btn-check" name="p${k}" id="p${k}n" onchange="state.pairs['${k}']=0">
+          <label class="btn btn-outline-secondary" for="p${k}n">No</label>
+        </div>
+      </div>`);
+  }
+}
+function submitPairs(){
+  const n=state.names.length, total=n*(n-1)/2, err=document.getElementById('err2');
+  if(Object.keys(state.pairs).length<total) return showErr(err,'Please answer every pair.');
+  err.classList.add('d-none'); go(3);
+}
+
+// ---------- Q3 ----------
+function buildSim(){
+  const host=document.getElementById('simRows'); host.innerHTML=''; state.sim={};
+  const n=state.names.length;
+  for(let i=0;i<n;i++){
+    let opts=''; for(let v=1;v<=5;v++){
+      opts+=`<input type="radio" class="btn-check" name="s${i}" id="s${i}_${v}" onchange="state.sim[${i}]=${v}">
+             <label class="btn btn-outline-danger" for="s${i}_${v}">${v}</label>`;
+    }
+    host.insertAdjacentHTML('beforeend',
+      `<div class="pair-row"><span class="pair-name">${esc(state.names[i])}</span>
+        <div class="btn-group btn-group-sm">${opts}</div></div>`);
+  }
+}
+function submitSim(){
+  const n=state.names.length, err=document.getElementById('err3');
+  if(Object.keys(state.sim).length<n) return showErr(err,'Please rate everyone.');
+  err.classList.add('d-none'); computeResult();
+}
+
+// ---------- compute ----------
+function results(){
+  const n=state.names.length, total=n*(n-1)/2;
+  let yes=0; for(const k in state.pairs) yes+=state.pairs[k];
+  const D=yes/total;
+  let sum=0; for(const i in state.sim) sum+=state.sim[i];
+  const meanSim=sum/n, S=(meanSim-1)/4, ECI=Math.sqrt(D*S);
+  return {D,S,ECI,meanSim,yes,total,n};
+}
+function computeResult(){
+  const r=results();
+  document.getElementById('eciVal').textContent=r.ECI.toFixed(2);
+  document.getElementById('dVal').textContent=r.D.toFixed(2);
+  document.getElementById('sVal').textContent=r.S.toFixed(2);
+  document.getElementById('dBar').style.width=(r.D*100)+'%';
+  document.getElementById('sBar').style.width=(r.S*100)+'%';
+  document.getElementById('interp').textContent=interpret(r);
+  drawEgo(r); saveResult(r); go(4);
+}
+function interpret(r){
+  const band=r.ECI>=0.66?'high':r.ECI>=0.33?'moderate':'low';
+  return {
+    high:'You mostly hear similar views from a closely connected group. A worthwhile question: where would a genuinely different view reach you?',
+    moderate:'Your circle mixes some shared views with some variety, and is moderately connected. There is room for both reinforcement and challenge.',
+    low:'Your circle is varied in its views or fairly spread out, so you are exposed to a wider range of perspectives.'
+  }[band];
+}
+
+// ---------- ego network ----------
+// colour goes from light (very different views) to dark (very similar views)
+function simColor(v){ const t=(v-1)/4;
+  return `rgb(${Math.round(207-(207-21)*t)},${Math.round(224-(224-58)*t)},${Math.round(245-(245-110)*t)})`; }
+function alterPos(i,n){ const cx=230,cy=125,R=90,a=-Math.PI/2+i*2*Math.PI/n;
+  return {x:cx+R*Math.cos(a), y:cy+R*Math.sin(a)}; }
+function drawEgo(r){
+  const cx=230,cy=125,n=r.n; let svg='';
+  // dashed lines between contacts who talk to each other
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){ if(state.pairs[pairKey(i,j)]){
+    const a=alterPos(i,n),b=alterPos(j,n); svg+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#495057" stroke-width="1.6" stroke-dasharray="4 3"/>`; }}
+  // contact nodes, coloured by similarity
+  for(let i=0;i<n;i++){const p=alterPos(i,n);
+    svg+=`<circle cx="${p.x}" cy="${p.y}" r="20" fill="${simColor(state.sim[i])}"/>
+          <text x="${p.x}" y="${p.y+4}" text-anchor="middle" font-size="11" fill="#fff">${esc(short(state.names[i]))}</text>`;}
+  // YOU in the centre
+  svg+=`<circle cx="${cx}" cy="${cy}" r="26" fill="#212529"/><text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="12" fill="#fff" font-weight="600">YOU</text>`;
+  document.getElementById('egoSvg').innerHTML=svg;
+}
+function short(n){ return n.length>7 ? n.slice(0,6)+'…' : n; }
+function esc(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---------- live aggregation ----------
+function saveResult(r){
+  if(!ENDPOINT) return;
+  fetch(ENDPOINT,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({d:r.D,s:r.S,eci:r.ECI})}).catch(()=>{});
+}
+
+// ---------- PDF (names removed) ----------
+function downloadPDF(){
+  const { jsPDF }=window.jspdf; const doc=new jsPDF({unit:'mm',format:'a4'});
+  const r=results(); const M=20; let y=24;
+  doc.setFont('helvetica','bold'); doc.setFontSize(20); doc.text('Echo Chamber Reflection',M,y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(120);
+  y+=7; doc.text('A private summary of your trusted work circle. Names have been removed.',M,y);
+  doc.setTextColor(33);
+  y+=16; doc.setFont('helvetica','bold'); doc.setFontSize(40); doc.setTextColor(220,53,69);
+  doc.text(r.ECI.toFixed(2),M,y);
+  doc.setTextColor(33); doc.setFontSize(11); doc.setFont('helvetica','normal');
+  doc.text('Echo Chamber Score  (0 = very mixed, 1 = very enclosed)',M+34,y-6);
+  y+=14; doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('What goes into the score',M,y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10.5); y+=8;
+  doc.text(`How connected your circle is: ${r.D.toFixed(2)}`,M,y);
+  doc.setTextColor(120); y+=5; doc.text(`Your contacts talk to each other in ${r.yes} of ${r.total} possible pairs.`,M,y); doc.setTextColor(33);
+  y+=9; doc.text(`How like-minded your circle is: ${r.S.toFixed(2)}`,M,y);
+  doc.setTextColor(120); y+=5; doc.text(`Average closeness of their political views to yours: ${r.meanSim.toFixed(1)} out of 5.`,M,y); doc.setTextColor(33);
+  y+=12; doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('What it means',M,y);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10.5); y+=7;
+  doc.text(doc.splitTextToSize(interpret(r),170),M,y); y+=18;
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('Your circle (names removed)',M,y); y+=4;
+  const n=r.n, cx=105, cy=y+42, R=30, pos=[];
+  for(let i=0;i<n;i++){const a=-Math.PI/2+i*2*Math.PI/n; pos.push({x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)});}
+  // dashed links = these two talk to each other
+  doc.setDrawColor(73,80,87); doc.setLineWidth(0.4);
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){ if(state.pairs[pairKey(i,j)]) doc.line(pos[i].x,pos[i].y,pos[j].x,pos[j].y); }
+  for(let i=0;i<n;i++){ const v=state.sim[i], t=(v-1)/4;
+    doc.setFillColor(Math.round(207-(207-21)*t),Math.round(224-(224-58)*t),Math.round(245-(245-110)*t));
+    doc.circle(pos[i].x,pos[i].y,5,'F');
+    doc.setFontSize(7); doc.setTextColor(255); doc.text(String(i+1),pos[i].x,pos[i].y+1,{align:'center'}); }
+  doc.setFillColor(33,37,41); doc.circle(cx,cy,7,'F');
+  doc.setFontSize(7); doc.setTextColor(255); doc.text('YOU',cx,cy+1,{align:'center'});
+  doc.setTextColor(120); doc.setFontSize(8);
+  doc.text('Dashed links = these two talk to each other.  Darker dots = closer to your political views.',M,cy+R+12);
+  doc.setTextColor(150); doc.setFontSize(7.5);
+  doc.text('Score = square root of (connectedness x like-mindedness). Both range 0 to 1. Self-reported and confidential.',M,288);
+  doc.save('echo-chamber-reflection.pdf');
+}
+
+// =================== DEBRIEF ===================
+function eciOf(d,s){ return Math.sqrt(d*s); }
+
+let ALLDATA = [];   // every response fetched from the backend
+
+async function drawDebrief(){
+  const note=document.getElementById('liveNote');
+  if(!ENDPOINT){
+    ALLDATA=[];
+    note.textContent='Backend not connected yet. Add your Google Apps Script URL to ENDPOINT in this file to collect and show live responses.';
+    clearCharts(); return;
+  }
+  note.textContent='Loading responses...';
+  try{
+    const res=await fetch(ENDPOINT); const j=await res.json();
+    ALLDATA = Array.isArray(j) ? j.map(o=>({ t:o.t, d:+o.d, s:+o.s })) : [];
+  }catch(e){
+    ALLDATA=[];
+    note.textContent='Could not reach the backend. Check that the ENDPOINT URL is correct and deployed for "Anyone".';
+    clearCharts(); return;
+  }
+  renderDebrief();
+}
+
+// re-draws from ALLDATA, applying the "today only" toggle (no re-fetch)
+function renderDebrief(){
+  const note=document.getElementById('liveNote');
+  const todayOnly=document.getElementById('todayOnly').checked;
+  let data=ALLDATA;
+  if(todayOnly){
+    const td=new Date().toDateString();
+    data=ALLDATA.filter(o=>o.t && new Date(o.t).toDateString()===td);
+  }
+  if(!data.length){
+    note.textContent = todayOnly ? 'No responses yet today.' : 'No responses yet. Results will appear here as people submit.';
+    clearCharts(); return;
+  }
+  note.textContent = todayOnly
+    ? `Showing ${data.length} response${data.length>1?'s':''} from today.`
+    : `Showing all ${data.length} response${data.length>1?'s':''} across sessions.`;
+  drawScatter(data); drawHist(data);
+}
+function clearCharts(){
+  document.getElementById('scatterHost').innerHTML='';
+  document.getElementById('histHost').innerHTML='';
+}
+function drawScatter(data){
+  const W=420,H=320,L=55,B=265,T=40,Rg=375, x=v=>L+v*(Rg-L), y=v=>B-v*(B-T);
+  let s=`<svg viewBox="0 0 ${W} ${H}">`;
+  s+=`<rect x="${x(.5)}" y="${T}" width="${Rg-x(.5)}" height="${y(.5)-T}" class="zone-fill"/>`;
+  s+=`<text x="${(x(.5)+Rg)/2}" y="${T+14}" text-anchor="middle" font-size="10" fill="#dc3545" letter-spacing="1">BOTH HIGH</text>`;
+  s+=`<line x1="${L}" y1="${T}" x2="${L}" y2="${B}" class="axis"/><line x1="${L}" y1="${B}" x2="${Rg}" y2="${B}" class="axis"/>`;
+  s+=`<line x1="${x(.5)}" y1="${T}" x2="${x(.5)}" y2="${B}" class="grid"/><line x1="${L}" y1="${y(.5)}" x2="${Rg}" y2="${y(.5)}" class="grid"/>`;
+  s+=`<text x="${(L+Rg)/2}" y="${B+30}" text-anchor="middle" class="axlab">HOW LIKE-MINDED &rarr;</text>`;
+  s+=`<text x="22" y="${(T+B)/2}" text-anchor="middle" class="axlab" transform="rotate(-90 22 ${(T+B)/2})">HOW CONNECTED &rarr;</text>`;
+  s+=`<text x="${L}" y="${B+14}" class="axlab">0</text><text x="${Rg-6}" y="${B+14}" class="axlab">1</text>`;
+  data.forEach(p=>{ s+=`<circle cx="${x(p.s)}" cy="${y(p.d)}" r="5.5" fill="#0d6efd" fill-opacity="0.7"/>`; });
+  s+='</svg>'; document.getElementById('scatterHost').innerHTML=s;
+}
+function drawHist(data){
+  const bins=new Array(5).fill(0);
+  data.forEach(p=>{ const e=eciOf(p.d,p.s); bins[Math.min(4,Math.floor(e/0.2))]++; });
+  const avg=data.reduce((a,p)=>a+eciOf(p.d,p.s),0)/data.length;
+  const W=420,H=320,L=45,B=265,T=30,Rg=395, max=Math.max(...bins,1), bw=(Rg-L)/5, y=v=>B-(v/max)*(B-T);
+  let s=`<svg viewBox="0 0 ${W} ${H}">`;
+  s+=`<line x1="${L}" y1="${B}" x2="${Rg}" y2="${B}" class="axis"/>`;
+  bins.forEach((c,i)=>{ const bx=L+i*bw+6;
+    s+=`<rect x="${bx}" y="${y(c)}" width="${bw-12}" height="${B-y(c)}" fill="#dc3545" fill-opacity="${0.35+i*0.13}"/>`;
+    s+=`<text x="${bx+(bw-12)/2}" y="${y(c)-5}" text-anchor="middle" font-size="11" fill="#495057">${c}</text>`;
+    s+=`<text x="${bx+(bw-12)/2}" y="${B+15}" text-anchor="middle" class="axlab">${(i*0.2).toFixed(1)}-${((i+1)*0.2).toFixed(1)}</text>`; });
+  const ax=L+avg*(Rg-L);
+  s+=`<line x1="${ax}" y1="${T}" x2="${ax}" y2="${B}" stroke="#212529" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+  s+=`<text x="${ax}" y="${T-6}" text-anchor="middle" font-size="10" fill="#212529">avg ${avg.toFixed(2)}</text>`;
+  s+=`<text x="${(L+Rg)/2}" y="${B+32}" text-anchor="middle" class="axlab">ECHO CHAMBER SCORE</text>`;
+  s+='</svg>'; document.getElementById('histHost').innerHTML=s;
+}
+</script>
+</body>
+</html>
