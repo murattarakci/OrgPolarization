@@ -124,11 +124,7 @@
           </div>
           <div class="mb-2">
             <span class="legend-spoke"></span>
-            &nbsp;A light grey line links <strong>you to each person you talk to</strong>.
-          </div>
-          <div class="mb-2">
-            <span class="legend-line"></span>
-            &nbsp;A dashed line means <strong>those two people also talk to each other</strong>. No dashed line between two people means they don't.
+            &nbsp;A grey line connects <strong>two people who talk to each other</strong>. You are linked to everyone you named; two of your contacts are also linked when they talk to each other.
           </div>
           <div class="mb-1">Each circle is one of your contacts. Its <strong>colour shows how close their political views are to yours</strong>:</div>
           <div class="d-flex align-items-center gap-2">
@@ -338,9 +334,9 @@ function drawEgo(r){
   const cx=230,cy=125,n=r.n; let svg='';
   // light grey spokes: everyone is connected to YOU
   for(let i=0;i<n;i++){const p=alterPos(i,n); svg+=`<line x1="${cx}" y1="${cy}" x2="${p.x}" y2="${p.y}" stroke="#ced4da" stroke-width="2"/>`;}
-  // dashed lines between contacts who talk to each other
+  // grey lines between contacts who talk to each other
   for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){ if(state.pairs[pairKey(i,j)]){
-    const a=alterPos(i,n),b=alterPos(j,n); svg+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#495057" stroke-width="1.6" stroke-dasharray="4 3"/>`; }}
+    const a=alterPos(i,n),b=alterPos(j,n); svg+=`<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#ced4da" stroke-width="2"/>`; }}
   // contact nodes, coloured by similarity
   for(let i=0;i<n;i++){const p=alterPos(i,n);
     svg+=`<circle cx="${p.x}" cy="${p.y}" r="20" fill="${simColor(state.sim[i])}"/>
@@ -383,10 +379,8 @@ function downloadPDF(){
   doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.text('Your circle (names removed)',M,y); y+=4;
   const n=r.n, cx=105, cy=y+42, R=30, pos=[];
   for(let i=0;i<n;i++){const a=-Math.PI/2+i*2*Math.PI/n; pos.push({x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)});}
-  // light grey spokes: everyone connected to YOU
+  // grey lines: you to everyone, plus contacts who talk to each other
   doc.setDrawColor(206,210,214); doc.setLineWidth(0.4); pos.forEach(p=>doc.line(cx,cy,p.x,p.y));
-  // dashed links = these two talk to each other
-  doc.setDrawColor(73,80,87); doc.setLineWidth(0.4);
   for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){ if(state.pairs[pairKey(i,j)]) doc.line(pos[i].x,pos[i].y,pos[j].x,pos[j].y); }
   for(let i=0;i<n;i++){ const v=state.sim[i], t=(v-1)/4;
     doc.setFillColor(Math.round(207-(207-21)*t),Math.round(224-(224-58)*t),Math.round(245-(245-110)*t));
@@ -395,7 +389,7 @@ function downloadPDF(){
   doc.setFillColor(33,37,41); doc.circle(cx,cy,7,'F');
   doc.setFontSize(7); doc.setTextColor(255); doc.text('YOU',cx,cy+1,{align:'center'});
   doc.setTextColor(120); doc.setFontSize(8);
-  doc.text('Grey lines = your circle (you talk to them).  Dashed links = these two also talk to each other.  Darker dots = closer to your political views.',M,cy+R+12);
+  doc.text('Grey lines = people who talk to each other.  Darker dots = closer to your political views.',M,cy+R+12);
   doc.setTextColor(150); doc.setFontSize(7.5);
   doc.text('Score = square root of (connectedness x like-mindedness). Both range 0 to 1. Self-reported and confidential.',M,288);
   doc.save('echo-chamber-reflection.pdf');
